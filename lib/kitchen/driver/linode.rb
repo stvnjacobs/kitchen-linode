@@ -17,7 +17,7 @@
 # limitations under the License.
 
 require 'kitchen'
-require 'fog'
+require 'fog/linode'
 require_relative 'linode_version'
 
 module Kitchen
@@ -29,19 +29,21 @@ module Kitchen
     class Linode < Kitchen::Driver::Base
       kitchen_driver_api_version 2
       plugin_version Kitchen::Driver::LINODE_VERSION
-      
+
+      # used for connections
       default_config :username, 'root'
       default_config :password, nil
-      default_config :server_name, nil
-      default_config :image, 140
-      default_config :data_center, 4
-      default_config :flavor, 1
-      default_config :payment_terms, 1
-      default_config :kernel, 138
-      
+      # used for provisioning
+      default_config :root_pass, nil
+      default_config :label, nil
+      default_config :image, 'linode/debian9'
+      default_config :retion, 'us-east'
+      default_config :type, 'g6-standard-1'
+      default_config :kernel, 'linode/grub2'
+
       default_config :sudo, true
       default_config :ssh_timeout, 600
-      
+
       default_config :private_key_path do
         %w(id_rsa).map do |k|
           f = File.expand_path("~/.ssh/#{k}")
@@ -51,27 +53,27 @@ module Kitchen
       default_config :public_key_path do |driver|
         driver[:private_key_path] + '.pub' if driver[:private_key_path]
       end
-      
-      default_config :api_key, ENV['LINODE_API_KEY']
-      
-      required_config :api_key
+
+      default_config :api_token, ENV['LINODE_TOKEN']
+
+      required_config :api_token
       required_config :private_key_path
       required_config :public_key_path
 
       def create(state)
         # create and boot server
-        config_server_name
+        config_label
         set_password
-        
+
         if state[:linode_id]
-          info "#{config[:server_name]} (#{state[:linode_id]}) already exists."
+          info "#{config[:label]} (#{state[:linode_id]}) already exists."
           return
         end
-        
-        info("Creating Linode - #{config[:server_name]}")
-        
+
+        info("Creating Linode - #{config[:label]}")
+
         server = create_server
-        
+
         # assign the machine id for reference in other commands
         state[:linode_id] = server.id
         state[:hostname] = server.public_ip_address
@@ -94,45 +96,45 @@ module Kitchen
         state.delete(:linode_id)
         state.delete(:pub_ip)
       end
-      
+
       private
-      
+
       def compute
-        Fog::Compute.new(:provider => 'Linode', :linode_api_key => config[:api_key])
+        Fog::Compute.new(:provider => 'Linode', :linode_token => config[:api_token])
       end
-      
+
       def get_dc
-        if config[:data_center].is_a? Integer
-          data_center = compute.data_centers.find { |dc| dc.id == config[:data_center] }
+        if config[:region].is_a? Integer
+          region = compute.regions.find { |dc| dc.id == config[:region] }
         else
-          data_center = compute.data_centers.find { |dc| dc.location =~ /#{config[:data_center]}/ }
+          region = compute.regions.find { |dc| dc.location =~ /#{config[:region]}/ }
         end
-        
-        if data_center.nil?
-          fail(UserError, "No match for data_center: #{config[:data_center]}")
+
+        if region.nil?
+          fail(UserError, "No match for region: #{config[:region]}")
         end
-        info "Got data center: #{data_center.location}..."
-        return data_center
+        info "Got data center: #{region.location}..."
+        return region
       end
-      
-      def get_flavor
-        if config[:flavor].is_a? Integer
-          if config[:flavor] < 1024
-            flavor = compute.flavors.find { |f| f.id == config[:flavor] }
+
+      def get_type
+        if config[:type].is_a? Integer
+          if config[:type] < 1024
+            type = compute.types.find { |f| f.id == config[:type] }
           else
-            flavor = compute.flavors.find { |f| f.ram == config[:flavor] }
+            type = compute.types.find { |f| f.ram == config[:type] }
           end
         else
-          flavor = compute.flavors.find { |f| f.name =~ /#{config[:flavor]}/ }
+          type = compute.types.find { |f| f.name =~ /#{config[:type]}/ }
         end
-        
-        if flavor.nil?
-          fail(UserError, "No match for flavor: #{config[:flavor]}")
+
+        if type.nil?
+          fail(UserError, "No match for type: #{config[:type]}")
         end
-        info "Got flavor: #{flavor.name}..."
-        return flavor
+        info "Got type: #{type.name}..."
+        return type
       end
-      
+
       def get_image
         if config[:image].is_a? Integer
           image = compute.images.find { |i| i.id == config[:image] }
@@ -145,7 +147,7 @@ module Kitchen
         info "Got image: #{image.name}..."
         return image
       end
-      
+
       def get_kernel
         if config[:kernel].is_a? Integer
           kernel = compute.kernels.find { |k| k.id == config[:kernel] }
@@ -158,26 +160,24 @@ module Kitchen
         info "Got kernel: #{kernel.name}..."
         return kernel
       end
-      
+
       def create_server
-        data_center = get_dc
-        flavor = get_flavor
+        region = get_region
+        type = get_type
         image = get_image
         kernel = get_kernel
-        
+
         # submit new linode request
         compute.servers.create(
-          :data_center => data_center,
-          :flavor => flavor, 
-          :payment_terms => config[:payment_terms], 
-          :name => config[:server_name],
+          :region => region,
+          :type => type,
+          :label => config[:label],
           :image => image,
           :kernel => kernel,
-          :username => config[:username],
-          :password => config[:password]
+          :root_pass => config[:root_pass]
         )
       end
-      
+
       def setup_ssh(state)
         set_ssh_keys
         state[:ssh_key] = config[:private_key_path]
@@ -218,14 +218,13 @@ module Kitchen
         end
         info "Done setting up SSH access."
       end
-      
+
       # Set the proper server name in the config
-      def config_server_name
-        if config[:server_name]
-          config[:vm_hostname] = "#{config[:server_name]}"
-          config[:server_name] = "kitchen-#{config[:server_name]}-#{instance.name}-#{Time.now.to_i.to_s}"
+      def config_label
+        if config[:label]
+          config[:label] = "kitchen-#{config[:label]}-#{instance.name}-#{Time.now.to_i.to_s}"
         else
-          config[:vm_hostname] = "#{instance.name}"
+          config[:label] = "#{instance.name}"
           if ENV["JOB_NAME"]
             # use jenkins job name variable. "kitchen_root" turns into "workspace" which is uninformative.
             jobname = ENV["JOB_NAME"]
@@ -234,22 +233,22 @@ module Kitchen
           else
             jobname = File.basename(config[:kitchen_root])
           end
-          config[:server_name] = "kitchen-#{jobname}-#{instance.name}-#{Time.now.to_i.to_s}".tr(" /", "_")
+          config[:label] = "kitchen-#{jobname}-#{instance.name}-#{Time.now.to_i.to_s}".tr(" /", "_")
         end
-        
+
         # cut to fit Linode 32 character maximum
-        if config[:server_name].is_a?(String) && config[:server_name].size >= 32
-          config[:server_name] = "#{config[:server_name][0..29]}#{rand(10..99)}"
+        if config[:label].is_a?(String) && config[:label].size >= 32
+          config[:label] = "#{config[:label][0..29]}#{rand(10..99)}"
         end
       end
-      
+
       # ensure a password is set
       def set_password
-        if config[:password].nil?
-          config[:password] = [*('a'..'z'),*('A'..'Z'),*('0'..'9')].sample(15).join
+        if config[:root_pass].nil?
+          config[:root_pass] = [*('a'..'z'),*('A'..'Z'),*('0'..'9')].sample(15).join
         end
       end
-      
+
       # set ssh keys
       def set_ssh_keys
         if config[:private_key_path]
