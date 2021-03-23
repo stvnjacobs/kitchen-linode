@@ -37,7 +37,7 @@ For many of these, you can specify an ID number, a full name, or a partial name 
 LINODE_TOKEN        Linode API Token environment variable, default: nil
 :username           ssh user name, default: "root"
 :password           password for user, default: randomly generated hash
-:image              Linux distribution, default: "linode/debian9"
+:image              Linux distribution, default: "linode/debian10"
 :region             region, default: "us-east"
 :type               linode instance type, default: "g6-standard-1"
 :kernel             Linux kernel, default: "linode/grub2"
