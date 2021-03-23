@@ -34,14 +34,13 @@ Please read the [Driver usage][driver_usage] page for more details.
 For many of these, you can specify an ID number, a full name, or a partial name that will try to match something in the list but may not match exactly what you want.
 
 ```
-LINODE_API_KEY      Linode API Key environment variable, default: nil
+LINODE_TOKEN        Linode API Token environment variable, default: nil
 :username           ssh user name, default: "root"
 :password           password for user, default: randomly generated hash
-:image              Linux distribution, default: "Debian 8"
-:data_center        data center, default: "Atlanta"
-:flavor             linode type/amount of RAM, default: "Linode 1024"
-:payment_terms      if you happen to have legacy, default: 1
-:kernel             Linux kernel, default: "Latest 64 bit"
+:image              Linux distribution, default: "linode/debian9"
+:region             region, default: "us-east"
+:type               linode instance type, default: "g6-standard-1"
+:kernel             Linux kernel, default: "linode/grub2"
 :private_key_path   Location of your private key file, default: "~/.ssh/id_rsa"
 :public_key_path    Location of your public key file, default: "~/.ssh/id_rsa.pub"
 :ssh_timeout        ssh timeout, default: 600 (seconds)
