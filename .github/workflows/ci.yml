@@ -19,8 +19,20 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -yq libcurl4-openssl-dev
+          curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter
+          chmod +x ./cc-test-reporter
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
-      - run: bundle exec rake
+      - name: Run test suite
+        if: matrix.ruby != 3.0
+        run: bundle exec rake
+      - name: Run test suite and publish Code Climate report
+        if: matrix.ruby == '3.0'
+        env:
+          CC_TEST_REPORTER_ID: 2f014e1a53aaac891ec152bcba40d84dc60faee7e61ee8089dd3981277c43301
+        run: |
+          ./cc-test-reporter before-build
+          bundle exec rake
+          ./cc-test-reporter after-build --exit-code $?
