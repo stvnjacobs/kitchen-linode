@@ -29,7 +29,7 @@ module Kitchen
     class Linode < Kitchen::Driver::Base
       kitchen_driver_api_version 2
       plugin_version Kitchen::Driver::LINODE_VERSION
-      
+
       default_config :username, 'root'
       default_config :password, nil
       default_config :server_name, nil
@@ -38,10 +38,10 @@ module Kitchen
       default_config :flavor, 1
       default_config :payment_terms, 1
       default_config :kernel, 138
-      
+
       default_config :sudo, true
       default_config :ssh_timeout, 600
-      
+
       default_config :private_key_path do
         %w(id_rsa).map do |k|
           f = File.expand_path("~/.ssh/#{k}")
@@ -51,9 +51,9 @@ module Kitchen
       default_config :public_key_path do |driver|
         driver[:private_key_path] + '.pub' if driver[:private_key_path]
       end
-      
+
       default_config :api_key, ENV['LINODE_API_KEY']
-      
+
       required_config :api_key
       required_config :private_key_path
       required_config :public_key_path
@@ -62,16 +62,16 @@ module Kitchen
         # create and boot server
         config_server_name
         set_password
-        
+
         if state[:linode_id]
           info "#{config[:server_name]} (#{state[:linode_id]}) already exists."
           return
         end
-        
+
         info("Creating Linode - #{config[:server_name]}")
-        
+
         server = create_server
-        
+
         # assign the machine id for reference in other commands
         state[:linode_id] = server.id
         state[:hostname] = server.public_ip_address
@@ -94,27 +94,27 @@ module Kitchen
         state.delete(:linode_id)
         state.delete(:pub_ip)
       end
-      
+
       private
-      
+
       def compute
         Fog::Compute.new(:provider => 'Linode', :linode_api_key => config[:api_key])
       end
-      
+
       def get_dc
         if config[:data_center].is_a? Integer
           data_center = compute.data_centers.find { |dc| dc.id == config[:data_center] }
         else
           data_center = compute.data_centers.find { |dc| dc.location =~ /#{config[:data_center]}/ }
         end
-        
+
         if data_center.nil?
           fail(UserError, "No match for data_center: #{config[:data_center]}")
         end
         info "Got data center: #{data_center.location}..."
         return data_center
       end
-      
+
       def get_flavor
         if config[:flavor].is_a? Integer
           if config[:flavor] < 1024
@@ -125,14 +125,14 @@ module Kitchen
         else
           flavor = compute.flavors.find { |f| f.name =~ /#{config[:flavor]}/ }
         end
-        
+
         if flavor.nil?
           fail(UserError, "No match for flavor: #{config[:flavor]}")
         end
         info "Got flavor: #{flavor.name}..."
         return flavor
       end
-      
+
       def get_image
         if config[:image].is_a? Integer
           image = compute.images.find { |i| i.id == config[:image] }
@@ -145,7 +145,7 @@ module Kitchen
         info "Got image: #{image.name}..."
         return image
       end
-      
+
       def get_kernel
         if config[:kernel].is_a? Integer
           kernel = compute.kernels.find { |k| k.id == config[:kernel] }
@@ -158,18 +158,18 @@ module Kitchen
         info "Got kernel: #{kernel.name}..."
         return kernel
       end
-      
+
       def create_server
         data_center = get_dc
         flavor = get_flavor
         image = get_image
         kernel = get_kernel
-        
+
         # submit new linode request
         compute.servers.create(
           :data_center => data_center,
-          :flavor => flavor, 
-          :payment_terms => config[:payment_terms], 
+          :flavor => flavor,
+          :payment_terms => config[:payment_terms],
           :name => config[:server_name],
           :image => image,
           :kernel => kernel,
@@ -177,7 +177,7 @@ module Kitchen
           :password => config[:password]
         )
       end
-      
+
       def setup_ssh(state)
         set_ssh_keys
         state[:ssh_key] = config[:private_key_path]
@@ -218,7 +218,7 @@ module Kitchen
         end
         info "Done setting up SSH access."
       end
-      
+
       # Set the proper server name in the config
       def config_server_name
         if config[:server_name]
@@ -238,20 +238,20 @@ module Kitchen
           end
           config[:server_name] = "kitchen-#{jobname}-#{instance.name}-#{Time.now.to_i.to_s}".tr(" /", "_")
         end
-        
+
         # cut to fit Linode 32 character maximum
         if config[:server_name].is_a?(String) && config[:server_name].size >= 32
           config[:server_name] = "#{config[:server_name][0..29]}#{rand(10..99)}"
         end
       end
-      
+
       # ensure a password is set
       def set_password
         if config[:password].nil?
           config[:password] = [*('a'..'z'),*('A'..'Z'),*('0'..'9')].sample(15).join
         end
       end
-      
+
       # set ssh keys
       def set_ssh_keys
         if config[:private_key_path]

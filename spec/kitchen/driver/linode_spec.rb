@@ -42,13 +42,13 @@ describe Kitchen::Driver::Linode do
     allow(File).to receive(:exist?).and_call_original
     allow(File).to receive(:exist?).with(rsa).and_return(true)
   end
-  
+
   describe '#finalize_config' do
     before(:each) { allow(File).to receive(:exist?).and_return(false) }
 
     context 'private key, public key, and api key provided' do
       let(:config) do
-        { private_key_path: '/tmp/key', 
+        { private_key_path: '/tmp/key',
           public_key_path: '/tmp/key.pub',
           api_key: 'mykey' }
       end
@@ -75,7 +75,7 @@ describe Kitchen::Driver::Linode do
           expect(driver[:public_key_path]).to eq(rsa + '.pub')
         end
       end
-      
+
       nils = [
         :server_name,
         :password
@@ -85,7 +85,7 @@ describe Kitchen::Driver::Linode do
           expect(driver[i]).to eq(nil)
         end
       end
-      
+
     end
     context 'overridden options' do
       let(:config) do
@@ -114,7 +114,7 @@ describe Kitchen::Driver::Linode do
       end
     end
   end
-  
+
   describe '#create' do
     let(:server) do
       double(id: 'test123', wait_for: true, public_ip_address: %w(1.2.3.4))
